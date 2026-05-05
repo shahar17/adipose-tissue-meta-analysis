@@ -253,7 +253,7 @@ run_gse58559 <- function() {
     timepoint_col = "timepoint",
     baseline_label = "pre-diet",
     post_label = "post-diet",
-    comparison = "post_diet_vs_pre_diet_paired"
+    comparison = "post_intervention_vs_pre_intervention_paired"
   )
 }
 
@@ -292,7 +292,7 @@ study_notes <- data.frame(
   reason = c(
     "Mapped to gene level and has control plus exercise samples over time.",
     "Mapped to gene level and has exercise versus sedentary groups.",
-    "Mapped to gene level and included as paired post-diet versus pre-diet adipose comparison.",
+    "Mapped to gene level and included as paired post-intervention versus pre-intervention comparison. GEO/OmicsDI describes exercise training with modest energy deficit; local sample metadata distinguishes diet arms but has no diet-only versus exercise-plus-diet flag.",
     "Mapped through GPL23159 SPOT_ID.1 annotations and included as paired rested post-training versus baseline comparison.",
     "Series matrix contained zero expression-feature rows."
   ),
