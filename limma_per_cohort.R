@@ -286,15 +286,80 @@ run_gse116801 <- function() {
   )
 }
 
+run_gse205891 <- function() {
+  geo_id <- "GSE205891"
+  dat <- read_study(geo_id)
+
+  pheno <- dat$pheno[colnames(dat$exprs), , drop = FALSE]
+  pheno$subject_id <- extract_regex_group(pheno$title, "Fat_([0-9]+)")
+  pheno$timepoint <- pheno[["sample type:ch1"]]
+  pheno$treatment <- pheno[["treatment:ch1"]]
+
+  keep <- pheno$treatment %in% c("SC", "ILT") &
+    pheno$timepoint %in% c("Before", "After") &
+    !is.na(pheno$subject_id)
+
+  exprs_mat <- dat$exprs[, keep, drop = FALSE]
+  pheno <- pheno[keep, , drop = FALSE]
+
+  sample_key <- paste(pheno$treatment, pheno$subject_id, pheno$timepoint, sep = "__")
+  averaged <- t(rowsum(t(exprs_mat), group = sample_key, reorder = FALSE))
+  key_parts <- strsplit(colnames(averaged), "__", fixed = TRUE)
+
+  averaged_pheno <- data.frame(
+    sample_key = colnames(averaged),
+    treatment = vapply(key_parts, `[`, character(1), 1),
+    subject_id = vapply(key_parts, `[`, character(1), 2),
+    timepoint = vapply(key_parts, `[`, character(1), 3),
+    stringsAsFactors = FALSE
+  )
+
+  by_subject <- split(averaged_pheno, averaged_pheno$subject_id)
+  change_list <- list()
+  change_treatment <- character()
+
+  for (subject_id in names(by_subject)) {
+    rows <- by_subject[[subject_id]]
+    before_key <- rows$sample_key[rows$timepoint == "Before"]
+    after_key <- rows$sample_key[rows$timepoint == "After"]
+
+    if (length(before_key) == 1 && length(after_key) == 1) {
+      change_list[[subject_id]] <- averaged[, after_key] - averaged[, before_key]
+      change_treatment <- c(change_treatment, rows$treatment[1])
+    }
+  }
+
+  change_mat <- do.call(cbind, change_list)
+  colnames(change_mat) <- names(change_list)
+  treatment <- factor(change_treatment, levels = c("SC", "ILT"))
+
+  design <- model.matrix(~ 0 + treatment)
+  colnames(design) <- levels(treatment)
+  contrast <- makeContrasts(ILT - SC, levels = design)
+
+  fit <- lmFit(change_mat, design)
+  fit <- contrasts.fit(fit, contrast)
+  fit <- eBayes(fit)
+
+  tt <- topTable(fit, number = Inf, sort.by = "none")
+  clean_limma_table(
+    tt,
+    geo_id = geo_id,
+    comparison = "intensive_lifestyle_change_vs_standard_care_change",
+    n_case = sum(treatment == "ILT"),
+    n_control = sum(treatment == "SC")
+  )
+}
+
 study_notes <- data.frame(
   geo_id = c("GSE43471", "GSE116801", "GSE58559", "GSE208032", "GSE205891"),
-  status = c("included", "included", "included", "included", "excluded"),
+  status = c("included", "included", "included", "included", "included"),
   reason = c(
     "Mapped to gene level and has control plus exercise samples over time.",
     "Mapped to gene level and has exercise versus sedentary groups.",
     "Mapped to gene level and included as paired post-intervention versus pre-intervention comparison. GEO/OmicsDI describes exercise training with modest energy deficit; local sample metadata distinguishes diet arms but has no diet-only versus exercise-plus-diet flag.",
     "Mapped through GPL23159 SPOT_ID.1 annotations and included as paired rested post-training versus baseline comparison.",
-    "Series matrix contained zero expression-feature rows."
+    "Imported from supplementary gene-level log2 CPM workbook; included as intensive lifestyle therapy change versus standard care change in subcutaneous adipose tissue."
   ),
   stringsAsFactors = FALSE
 )
@@ -309,7 +374,8 @@ results <- rbind(
   run_gse43471(),
   run_gse116801(),
   run_gse58559(),
-  run_gse208032()
+  run_gse208032(),
+  run_gse205891()
 )
 
 write.csv(

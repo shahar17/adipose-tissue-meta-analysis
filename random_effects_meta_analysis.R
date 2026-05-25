@@ -115,7 +115,7 @@ write.csv(
 
 write.csv(
   meta_results[meta_results$all_studies, ],
-  file.path(output_dir, "random_effects_meta_results_all_4_studies.csv"),
+  file.path(output_dir, paste0("random_effects_meta_results_all_", n_total_studies, "_studies.csv")),
   row.names = FALSE
 )
 
@@ -125,7 +125,7 @@ summary_table <- data.frame(
     "input_studies",
     "unique_input_genes",
     "genes_meta_analyzed_at_least_2_studies",
-    "genes_meta_analyzed_all_4_studies",
+    paste0("genes_meta_analyzed_all_", n_total_studies, "_studies"),
     "fit_errors"
   ),
   value = c(
