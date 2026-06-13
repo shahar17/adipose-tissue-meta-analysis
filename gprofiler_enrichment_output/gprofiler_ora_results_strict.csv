@@ -1,0 +1,2 @@
+"query","significant","p_value","term_size","query_size","intersection_size","precision","recall","term_id","source","term_name","effective_domain_size","source_order","parents","evidence_codes","intersection","query_name"
+"query_1",TRUE,0.0498844277577495,1,5,1,0.2,1,"GO:0046911","GO:MF","metal chelating activity",20208,5636,"GO:0046872","IDA","APOE","strict_upregulated"

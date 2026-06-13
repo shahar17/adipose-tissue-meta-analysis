@@ -66,6 +66,8 @@ fit_gene <- function(gene_df) {
       p_value = NA_real_,
       ci_lower = NA_real_,
       ci_upper = NA_real_,
+      prediction_lower = NA_real_,
+      prediction_upper = NA_real_,
       tau2 = NA_real_,
       I2 = NA_real_,
       H2 = NA_real_,
@@ -78,6 +80,8 @@ fit_gene <- function(gene_df) {
     ))
   }
 
+  predicted <- predict(fit)
+
   data.frame(
     gene = gene_df$gene[[1]],
     n_studies = n_studies,
@@ -89,6 +93,8 @@ fit_gene <- function(gene_df) {
     p_value = fit$pval,
     ci_lower = fit$ci.lb,
     ci_upper = fit$ci.ub,
+    prediction_lower = predicted$pi.lb,
+    prediction_upper = predicted$pi.ub,
     tau2 = fit$tau2,
     I2 = fit$I2,
     H2 = fit$H2,

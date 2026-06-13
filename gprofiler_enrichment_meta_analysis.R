@@ -3,9 +3,12 @@ library(gprofiler2)
 input_path <- file.path("random_effects_meta_output", "random_effects_meta_results.csv")
 output_dir <- "gprofiler_enrichment_output"
 
-adj_p_threshold <- 0.1
-i2_threshold <- 50
-abs_effect_threshold <- 0.25
+strict_adj_p_threshold <- 0.1
+strict_i2_threshold <- 50
+strict_abs_effect_threshold <- 0.25
+
+relaxed_adj_p_threshold <- 0.1
+relaxed_abs_effect_threshold <- 0.1
 
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -26,19 +29,30 @@ meta_results <- meta_results[
     nzchar(meta_results$gene),
 ]
 
-sig <- meta_results[
-  meta_results$adj_p_value < adj_p_threshold &
-    meta_results$I2 < i2_threshold &
-    abs(meta_results$meta_logFC) > abs_effect_threshold,
-]
-sig_up <- sig[sig$meta_logFC > 0, ]
-sig_down <- sig[sig$meta_logFC < 0, ]
+make_gene_sets <- function(sig) {
+  sig_up <- sig[sig$meta_logFC > 0, ]
+  sig_down <- sig[sig$meta_logFC < 0, ]
 
-gene_sets <- list(
-  all_significant = unique(sig$gene),
-  upregulated = unique(sig_up$gene),
-  downregulated = unique(sig_down$gene)
-)
+  list(
+    all_significant = unique(sig$gene),
+    upregulated = unique(sig_up$gene),
+    downregulated = unique(sig_down$gene)
+  )
+}
+
+strict_sig <- meta_results[
+  meta_results$adj_p_value < strict_adj_p_threshold &
+    meta_results$I2 < strict_i2_threshold &
+    abs(meta_results$meta_logFC) > strict_abs_effect_threshold,
+]
+
+relaxed_sig <- meta_results[
+  meta_results$adj_p_value < relaxed_adj_p_threshold &
+    abs(meta_results$meta_logFC) > relaxed_abs_effect_threshold,
+]
+
+strict_gene_sets <- make_gene_sets(strict_sig)
+relaxed_gene_sets <- make_gene_sets(relaxed_sig)
 
 write_gene_list <- function(genes, name) {
   write.csv(
@@ -48,8 +62,10 @@ write_gene_list <- function(genes, name) {
   )
 }
 
-for (name in names(gene_sets)) {
-  write_gene_list(gene_sets[[name]], name)
+write_gene_set_group <- function(gene_sets, prefix) {
+  for (name in names(gene_sets)) {
+    write_gene_list(gene_sets[[name]], paste0(prefix, "_", name))
+  }
 }
 
 run_gost <- function(query, name, ordered_query = FALSE) {
@@ -80,6 +96,14 @@ run_gost <- function(query, name, ordered_query = FALSE) {
   out
 }
 
+run_gene_set_group <- function(gene_sets, prefix) {
+  results <- do.call(rbind, lapply(names(gene_sets), function(name) {
+    run_gost(gene_sets[[name]], name = paste0(prefix, "_", name), ordered_query = FALSE)
+  }))
+
+  flatten_for_csv(results)
+}
+
 flatten_for_csv <- function(df) {
   if (nrow(df) == 0) {
     return(df)
@@ -94,36 +118,68 @@ flatten_for_csv <- function(df) {
   }), stringsAsFactors = FALSE, check.names = FALSE)
 }
 
-ora_results <- do.call(rbind, lapply(names(gene_sets), function(name) {
-  run_gost(gene_sets[[name]], name = name, ordered_query = FALSE)
-}))
+write_gene_set_group(strict_gene_sets, "strict")
+write_gene_set_group(relaxed_gene_sets, "relaxed_no_i2_abs0.1")
 
-ora_results <- flatten_for_csv(ora_results)
+for (name in names(strict_gene_sets)) {
+  write_gene_list(strict_gene_sets[[name]], name)
+}
+
+strict_ora_results <- run_gene_set_group(strict_gene_sets, "strict")
+relaxed_ora_results <- run_gene_set_group(relaxed_gene_sets, "relaxed_no_i2_abs0.1")
+
+ora_results <- rbind(strict_ora_results, relaxed_ora_results)
 
 write.csv(
-  ora_results,
+  strict_ora_results,
+  file.path(output_dir, "gprofiler_ora_results_strict.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  relaxed_ora_results,
+  file.path(output_dir, "gprofiler_ora_results_relaxed_no_i2_abs0.1.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  strict_ora_results,
   file.path(output_dir, "gprofiler_ora_results.csv"),
   row.names = FALSE
 )
 
 summary_table <- data.frame(
   analysis = c(
-    "adjusted_p_threshold",
-    "i2_threshold",
-    "absolute_effect_threshold",
-    "all_significant_genes",
-    "upregulated_significant_genes",
-    "downregulated_significant_genes",
-    "ora_enriched_terms"
+    "strict_adjusted_p_threshold",
+    "strict_i2_threshold",
+    "strict_absolute_effect_threshold",
+    "strict_all_significant_genes",
+    "strict_upregulated_significant_genes",
+    "strict_downregulated_significant_genes",
+    "strict_ora_enriched_terms",
+    "relaxed_adjusted_p_threshold",
+    "relaxed_i2_threshold",
+    "relaxed_absolute_effect_threshold",
+    "relaxed_all_significant_genes",
+    "relaxed_upregulated_significant_genes",
+    "relaxed_downregulated_significant_genes",
+    "relaxed_ora_enriched_terms"
   ),
   value = c(
-    adj_p_threshold,
-    i2_threshold,
-    abs_effect_threshold,
-    length(gene_sets$all_significant),
-    length(gene_sets$upregulated),
-    length(gene_sets$downregulated),
-    nrow(ora_results)
+    strict_adj_p_threshold,
+    strict_i2_threshold,
+    strict_abs_effect_threshold,
+    length(strict_gene_sets$all_significant),
+    length(strict_gene_sets$upregulated),
+    length(strict_gene_sets$downregulated),
+    nrow(strict_ora_results),
+    relaxed_adj_p_threshold,
+    "not_applied",
+    relaxed_abs_effect_threshold,
+    length(relaxed_gene_sets$all_significant),
+    length(relaxed_gene_sets$upregulated),
+    length(relaxed_gene_sets$downregulated),
+    nrow(relaxed_ora_results)
   ),
   stringsAsFactors = FALSE
 )
